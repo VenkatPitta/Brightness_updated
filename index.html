@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Brightness Statistics</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        body {
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .button-group {
+            margin-bottom: 20px;
+        }
+        .button-group h3 {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 8px 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+        .stats-container {
+            margin-top: 30px;
+        }
+        .distribution {
+            height: 64px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            position: relative;
+            margin-bottom: 8px;
+        }
+        .range-bar {
+            position: absolute;
+            height: 100%;
+            background: #bfdbfe;
+            border-radius: 8px;
+        }
+        .std-bar {
+            position: absolute;
+            height: 100%;
+            background: #60a5fa;
+            opacity: 0.6;
+            border-radius: 8px;
+        }
+        .median-line, .mean-line {
+            position: absolute;
+            height: 100%;
+            width: 4px;
+        }
+        .median-line {
+            background: #2563eb;
+        }
+        .mean-line {
+            background: #16a34a;
+        }
+        .range-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #666;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .stats-box h3, .legend h3 {
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        .image-count {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1 class="title">Brightness Statistics</h1>
+        
+        <div class="button-group">
+            <h3>Data Split:</h3>
+            <div class="buttons" id="splitButtons">
+                <button class="active" data-split="train">Train</button>
+                <button data-split="val">Val</button>
+                <button data-split="test">Test</button>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <h3>Class:</h3>
+            <div class="buttons" id="classButtons">
+                <button class="active" data-class="normal_frames">Normal Frames</button>
+                <button data-class="corrosion">Corrosion</button>
+                <button data-class="deposits">Deposits</button>
+                <button data-class="joint seperation">Joint Seperation</button>
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="distribution" id="distribution">
+                <div class="range-bar" id="rangeBar"></div>
+                <div class="std-bar" id="stdBar"></div>
+                <div class="median-line" id="medianLine"></div>
+                <div class="mean-line" id="meanLine"></div>
+            </div>
+            <div class="range-labels">
+                <span id="minLabel"></span>
+                <span id="maxLabel"></span>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stats-box">
+                    <h3>Statistics</h3>
+                    <div class="stat-row">
+                        <span>Mean:</span>
+                        <span id="meanValue"></span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Median:</span>
+                        <span id="medianValue"></span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Std Dev:</span>
+                        <span id="stdValue"></span>
+                    </div>
+                </div>
+
+                <div class="legend">
+                    <h3>Legend</h3>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #bfdbfe"></div>
+                        <span>Full Range</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #60a5fa"></div>
+                        <span>±1 Std Dev</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #16a34a"></div>
+                        <span>Mean</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #2563eb"></div>
+                        <span>Median</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="image-count">
+                <span id="imageCount"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const data = {
+            "train": {
+                "corrosion": {
+                    "min_brightness": 3.8181278935185183,
+                    "max_brightness": 188.96977864583334,
+                    "mean_brightness": 134.04311344871599,
+                    "median_brightness": 144.517333984375,
+                    "std_brightness": 24.91675657861274,
+                    "num_images": 2206
+                },
+                "deposits": {
+                    "min_brightness": 78.89552083333334,
+                    "max_brightness": 188.77392939814814,
+                    "mean_brightness": 123.02212995277873,
+                    "median_brightness": 123.48228515624999,
+                    "std_brightness": 27.31515158932178,
+                    "num_images": 732
+                },
+                "joint seperation": {
+                    "min_brightness": 59.846966145833335,
+                    "max_brightness": 197.37787760416666,
+                    "mean_brightness": 126.88830797553393,
+                    "median_brightness": 132.9571484375,
+                    "std_brightness": 33.96039605094899,
+                    "num_images": 119
+                },
+                "normal_frames": {
+                    "min_brightness": 63.18206886574074,
+                    "max_brightness": 186.53160481770834,
+                    "mean_brightness": 140.9234128737307,
+                    "median_brightness": 143.8451969401042,
+                    "std_brightness": 14.906283525640564,
+                    "num_images": 2814
+                }
+            },
+            "val": {
+                "corrosion": {
+                    "min_brightness": 88.13617476851852,
+                    "max_brightness": 185.44203450520834,
+                    "mean_brightness": 144.36280192024407,
+                    "median_brightness": 148.699326171875,
+                    "std_brightness": 19.736632357912285,
+                    "num_images": 275
+                },
+                "deposits": {
+                    "min_brightness": 62.3784375,
+                    "max_brightness": 166.1801953125,
+                    "mean_brightness": 123.80704422006984,
+                    "median_brightness": 128.62965494791666,
+                    "std_brightness": 32.583768307750724,
+                    "num_images": 152
+                },
+                "joint seperation": {
+                    "min_brightness": 125.60947265625,
+                    "max_brightness": 147.21614583333334,
+                    "mean_brightness": 140.99724074590773,
+                    "median_brightness": 147.01206217447918,
+                    "std_brightness": 9.620916148425772,
+                    "num_images": 14
+                },
+                "normal_frames": {
+                    "min_brightness": 99.99649643132716,
+                    "max_brightness": 185.62530623070987,
+                    "mean_brightness": 147.10641653119617,
+                    "median_brightness": 149.00665364583332,
+                    "std_brightness": 15.027952669786373,
+                    "num_images": 351
+                }
+            },
+            "test": {
+                "corrosion": {
+                    "min_brightness": 66.57944444444445,
+                    "max_brightness": 189.33831018518518,
+                    "mean_brightness": 135.43510488830532,
+                    "median_brightness": 132.83650462962962,
+                    "std_brightness": 26.087730470494964,
+                    "num_images": 277
+                },
+                "deposits": {
+                    "min_brightness": 62.746419270833336,
+                    "max_brightness": 170.13908854166667,
+                    "mean_brightness": 122.05734745472569,
+                    "median_brightness": 133.52695963541666,
+                    "std_brightness": 32.32234547927094,
+                    "num_images": 151
+                },
+                "joint seperation": {
+                    "min_brightness": 111.994306640625,
+                    "max_brightness": 153.43702473958334,
+                    "mean_brightness": 136.57105428059896,
+                    "median_brightness": 139.98984375,
+                    "std_brightness": 12.350192363239016,
+                    "num_images": 16
+                },
+                "normal_frames": {
+                    "min_brightness": 24.93559718276515,
+                    "max_brightness": 217.40377363040125,
+                    "mean_brightness": 120.33184178011476,
+                    "median_brightness": 119.08571759259259,
+                    "std_brightness": 38.04898290415452,
+                    "num_images": 353
+                }
+            }
+        };
+
+        let currentSplit = 'train';
+        let currentClass = 'normal_frames';
+        const maxPossibleBrightness = 255;
+
+        function getWidthPercentage(value) {
+            return (value / maxPossibleBrightness) * 100;
+        }
+
+        function updateVisualization() {
+            const selectedData = data[currentSplit][currentClass];
+            
+            // Update range bar
+            const rangeBar = document.getElementById('rangeBar');
+            rangeBar.style.left = `${getWidthPercentage(selectedData.min_brightness)}%`;
+            rangeBar.style.width = `${getWidthPercentage(selectedData.max_brightness - selectedData.min_brightness)}%`;
+
+            // Update std dev bar
+            const stdBar = document.getElementById('stdBar');
+            stdBar.style.left = `${getWidthPercentage(selectedData.mean_brightness - selectedData.std_brightness)}%`;
+            stdBar.style.width = `${getWidthPercentage(selectedData.std_brightness * 2)}%`;
+
+            // Update lines
+            document.getElementById('medianLine').style.left = `${getWidthPercentage(selectedData.median_brightness)}%`;
+            document.getElementById('meanLine').style.left = `${getWidthPercentage(selectedData.mean_brightness)}%`;
+
+            // Update labels
+            document.getElementById('minLabel').textContent = selectedData.min_brightness.toFixed(1);
+            document.getElementById('maxLabel').textContent = selectedData.max_brightness.toFixed(1);
+            document.getElementById('meanValue').textContent = selectedData.mean_brightness.toFixed(2);
+            document.getElementById('medianValue').textContent = selectedData.median_brightness.toFixed(2);
+            document.getElementById('stdValue').textContent = `±${selectedData.std_brightness.toFixed(2)}`;
+            document.getElementById('imageCount').textContent = `Number of Images: ${selectedData.num_images}`;
+        }
+
+        // Setup button handlers
+        document.querySelectorAll('#splitButtons button').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('#splitButtons button').forEach(b => b.classList.remove('active'));
+                button.classList.add('active');
+                currentSplit = button.dataset.split;
+                updateVisualization();
+            });
+        });
+
+        document.querySelectorAll('#classButtons button').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('#classButtons button').forEach(b => b.classList.remove('active'));
+                button.classList.add('active');
+                currentClass = button.dataset.class;
+                updateVisualization();
+            });
+        });
+
+        // Initial visualization
+        updateVisualization();
+    </script>
+</body>
+</html>
